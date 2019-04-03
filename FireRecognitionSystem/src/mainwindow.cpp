@@ -5,7 +5,8 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QMovie>
-#include <QHostAddress>
+#include <QSerialPortInfo>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -13,13 +14,13 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    m_server = new QTcpServer;
-    m_socket = new QTcpSocket;
-
-    m_server->listen(QHostAddress(ip),port);
-
-    connect(m_server,SIGNAL(newConnection()),this,SLOT(hasNewClient()));
-
+    // 配置串口参数
+    m_port.setBaudRate(115200);
+    m_port.setDataBits(QSerialPort::Data8);
+    QList<QSerialPortInfo>  info = QSerialPortInfo::availablePorts();
+    for(int i=0;i<info.size();i++){
+        ui->portbox->addItem(info[i].portName());
+    }
 
 }
 
@@ -47,7 +48,6 @@ void MainWindow::timedone()
         QImage image = m_fire.CheckColor(img);//检测火焰并绘画绿色矩形框
         ui->label->setPixmap(QPixmap::fromImage(image));//将画好的新图像显示到界面上
     }
-
 }
 
 void MainWindow::on_filebtn_clicked()
@@ -74,20 +74,11 @@ void MainWindow::on_filebtn_clicked()
     }
 }
 
-void MainWindow::hasNewClient()
-{
-    //当有新的客户端到来的时候
-    m_socket = m_server->nextPendingConnection();
-    connect(m_socket,SIGNAL(readyRead()),this,SLOT(readyRead()));
-    connect(m_socket,SIGNAL(disconnected()),this,SLOT(disconsucces()));
-    ui->wifi->setPixmap(QPixmap::fromImage(QImage(":/imgs/wifi_green.png")));
-
-}
-
 void MainWindow::readyRead()
 {
-    QByteArray arr = m_socket->readAll();
+    QByteArray arr = m_port.readAll();
     QString data(arr);
+
     // data -->  [0]  no mq
     // data -->  [1]   yes mq
     if(data.startsWith('[')&&data.endsWith(']')){
@@ -101,27 +92,47 @@ void MainWindow::readyRead()
     }
 }
 
-void MainWindow::disconsucces()
-{
-    ui->wifi->setPixmap(QPixmap::fromImage(QImage(":/imgs/wifi_red.png")));
-}
-
 void MainWindow::on_fenshanbtn_clicked()
 {
     //风扇开关处理
     if(ui->fenshanbtn->text()=="打开风扇"){
-        QString packet ="{\"s\":0}";
-        if(m_socket->write(packet.toStdString().data())){
+        QString packet ="{\"s\":o}";
+        if(m_port.write(packet.toStdString().data())){
             QMovie *moive =new QMovie(":/imgs/fenshan.gif");
             ui->fenshan->setMovie(moive);
             moive->start();
             ui->fenshanbtn->setText("关闭风扇");
         }
     }else{
-        QString packet ="{\"s\":1}";
-        if(m_socket->write(packet.toStdString().data())){
+        QString packet ="{\"s\":c}";
+        if(m_port.write(packet.toStdString().data())){
             ui->fenshan->setPixmap(QPixmap::fromImage(QImage(":/imgs/fenshan.png")));
             ui->fenshanbtn->setText("打开风扇");
         }
     }
+}
+
+void MainWindow::on_portbtn_clicked()
+{
+    QString comName = ui->portbox->currentText();
+    if(comName.isEmpty()){
+        QMessageBox::warning(this,"打开错误","请选择串口号");
+        return;
+    }
+    m_port.setPortName(comName);
+
+    if(!m_port.open(QIODevice::ReadWrite)){
+        QMessageBox::warning(this,"打开错误","打开失败");
+        return;
+    }
+
+    ui->wifi->setPixmap(QPixmap::fromImage(QImage(":/imgs/wifi_green.png")));
+    connect(&m_port,SIGNAL(readyRead()),this,SLOT(readyRead()));
+}
+
+void MainWindow::on_closeBtn_clicked()
+{
+    ui->wifi->setPixmap(QPixmap::fromImage(QImage(":/imgs/wifi_red.png")));
+    disconnect(&m_port,SIGNAL(readyRead()),this,SLOT(readyRead()));
+    m_port.close();
 }
