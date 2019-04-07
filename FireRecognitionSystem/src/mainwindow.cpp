@@ -21,7 +21,6 @@ MainWindow::MainWindow(QWidget *parent) :
     for(int i=0;i<info.size();i++){
         ui->portbox->addItem(info[i].portName());
     }
-
 }
 
 MainWindow::~MainWindow()
@@ -31,6 +30,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::on_camerabtn_clicked()
 {
+    // 打开摄像头按钮事件
     if(m_frame.isOpened()){
         m_frame.release();
     }
@@ -76,6 +76,7 @@ void MainWindow::on_filebtn_clicked()
 
 void MainWindow::readyRead()
 {
+    // 处理接收到串口的数据
     QByteArray arr = m_port.readAll();
     QString data(arr);
 
@@ -94,6 +95,12 @@ void MainWindow::readyRead()
 
 void MainWindow::on_fenshanbtn_clicked()
 {
+
+    if(!m_port.isOpen()){
+        QMessageBox::warning(this,"打开错误","请先打开串口");
+        return;
+    }
+
     //风扇开关处理
     if(ui->fenshanbtn->text()=="打开风扇"){
         QString packet ="{\"s\":o}";
